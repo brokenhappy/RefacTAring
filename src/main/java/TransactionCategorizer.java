@@ -1,4 +1,6 @@
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,6 +40,59 @@ public final class TransactionCategorizer {
             if (rows.isEmpty()) {
                 throw new IllegalArgumentException("The CSV is empty.");
             }
+            List<String> header = rows.get(0);
+            int columnCount = header.size();
+            int categoryColumn = -1;
+            for (int column = 0; column < columnCount; column++) {
+                if (header.get(column).strip().equalsIgnoreCase("category")) {
+                    if (categoryColumn >= 0) {
+                        throw new IllegalArgumentException("The CSV has more than one Category column.");
+                    }
+                    categoryColumn = column;
+                }
+            }
+            for (int record = 1; record < rows.size(); record++) {
+                if (rows.get(record).size() != columnCount) {
+                    throw new IllegalArgumentException("CSV row " + (record + 1) + " has "
+                            + rows.get(record).size() + " fields; expected " + columnCount + ".");
+                }
+            }
+            if (categoryColumn < 0) {
+                categoryColumn = header.size();
+                header.add("Category");
+                for (int record = 1; record < rows.size(); record++) {
+                    rows.get(record).add("");
+                }
+            }
+
+            BufferedReader console = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
+            for (int record = 1; record < rows.size(); record++) {
+                List<String> row = rows.get(record);
+                System.out.printf("%nTransaction %d of %d%n", record, rows.size() - 1);
+                for (int column = 0; column < header.size(); column++) {
+                    if (column != categoryColumn) {
+                        System.out.println(header.get(column) + ": " + row.get(column));
+                    }
+                }
+                String category = row.get(categoryColumn).strip();
+                while (true) {
+                    System.out.print(category.isEmpty() ? "Category: " : "Category [" + category + "]: ");
+                    System.out.flush();
+                    String answer = console.readLine();
+                    if (answer == null) {
+                        throw new IllegalArgumentException("Input ended before all transactions were categorized.");
+                    }
+                    if (!answer.isBlank()) {
+                        category = answer.strip();
+                    }
+                    if (!category.isEmpty()) {
+                        break;
+                    }
+                    System.out.println("Please enter a category.");
+                }
+                row.set(categoryColumn, category);
+            }
+
             String lineEnding = csv.contains("\r\n") ? "\r\n" : csv.contains("\r") ? "\r" : "\n";
             Files.writeString(output, (hasBom ? "\uFEFF" : "") + toCsv(rows, lineEnding),
                     StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
