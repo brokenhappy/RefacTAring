@@ -18,47 +18,93 @@ class TransactionCategorizerCliTest {
 
     @Test
     fun `adds a category column without changing the input`() {
-        val source = csv("Date,Receiver,Amount", "2026-10-01,Shop,-12.40")
+        val source = """
+            Date,Receiver,Amount
+            2026-10-01,Shop,-12.40
+        """.trimIndent() + "\n"
         val input = inputFile(source)
 
-        val result = runCli(input, directory.resolve("output.csv"), responses("", "Groceries"))
+        val result = runCategorizerApp(input, directory.resolve("output.csv"), responses("", "Groceries"))
 
-        result.assertCsv(csv("Date,Receiver,Amount,Category", "2026-10-01,Shop,-12.40,Groceries"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Date,Receiver,Amount,Category
+                2026-10-01,Shop,-12.40,Groceries
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
+        )
         assertEquals(source, Files.readString(input))
         result.assertTranscriptContains("Transaction 1 of 1")
     }
 
     @Test
     fun `suggests the previous category for the same receiver`() {
-        val result = runCsv(
-            csv("Receiver,Amount", "Shop,-10", "Shop,-5"),
+        val result = runCategorizerAppWithTestIO(
+            """
+                Receiver,Amount
+                Shop,-10
+                Shop,-5
+            """.trimIndent() + "\n",
             responses("", "Groceries", "", ""),
         )
 
-        result.assertCsv(csv("Receiver,Amount,Category", "Shop,-10,Groceries", "Shop,-5,Groceries"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Amount,Category
+                Shop,-10,Groceries
+                Shop,-5,Groceries
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
+        )
         result.assertTranscriptContains("Category [Groceries]:")
     }
 
     @Test
     fun `matches receivers regardless of case and surrounding spaces`() {
-        val result = runCsv(
-            csv("Receiver,Amount", " ACME ,-10", "acme,-5"),
+        val result = runCategorizerAppWithTestIO(
+            """
+                Receiver,Amount
+                 ACME ,-10
+                acme,-5
+            """.trimIndent() + "\n",
             responses("", "Supplies", "", ""),
         )
 
-        result.assertCsv(csv("Receiver,Amount,Category", " ACME ,-10,Supplies", "acme,-5,Supplies"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Amount,Category
+                 ACME ,-10,Supplies
+                acme,-5,Supplies
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
+        )
         result.assertTranscriptContains("Category [Supplies]:")
     }
 
     @Test
     fun `a changed category becomes the next suggestion`() {
-        val result = runCsv(
-            csv("Receiver,Amount", "Shop,-10", "Shop,-5", "Shop,-3"),
+        val result = runCategorizerAppWithTestIO(
+            """
+                Receiver,Amount
+                Shop,-10
+                Shop,-5
+                Shop,-3
+            """.trimIndent() + "\n",
             responses("", "Groceries", "", "Gifts", "", ""),
         )
 
-        result.assertCsv(
-            csv("Receiver,Amount,Category", "Shop,-10,Groceries", "Shop,-5,Gifts", "Shop,-3,Gifts"),
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Amount,Category
+                Shop,-10,Groceries
+                Shop,-5,Gifts
+                Shop,-3,Gifts
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
         )
         result.assertTranscriptContains("Category [Groceries]:")
         result.assertTranscriptContains("Category [Gifts]:")
@@ -66,40 +112,90 @@ class TransactionCategorizerCliTest {
 
     @Test
     fun `keeps an existing category column in its original position`() {
-        val result = runCsv(csv("Date,Category,Receiver", "1,Travel,Taxi"), responses("", ""))
+        val result = runCategorizerAppWithTestIO(
+            """
+                Date,Category,Receiver
+                1,Travel,Taxi
+            """.trimIndent() + "\n",
+            responses("", ""),
+        )
 
-        result.assertCsv(csv("Date,Category,Receiver", "1,Travel,Taxi"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Date,Category,Receiver
+                1,Travel,Taxi
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
+        )
         result.assertTranscriptContains("Category [Travel]:")
     }
 
     @Test
     fun `an existing category teaches the next row`() {
-        val result = runCsv(
-            csv("Receiver,Category", "Shop,Groceries", "Shop,"),
+        val result = runCategorizerAppWithTestIO(
+            """
+                Receiver,Category
+                Shop,Groceries
+                Shop,
+            """.trimIndent() + "\n",
             responses("", "", "", ""),
         )
 
-        result.assertCsv(csv("Receiver,Category", "Shop,Groceries", "Shop,Groceries"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Category
+                Shop,Groceries
+                Shop,Groceries
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
+        )
     }
 
     @Test
     fun `an existing category can be changed`() {
-        val result = runCsv(csv("Receiver,Category", "Taxi,Travel"), responses("", "Business"))
+        val result = runCategorizerAppWithTestIO(
+            """
+                Receiver,Category
+                Taxi,Travel
+            """.trimIndent() + "\n",
+            responses("", "Business"),
+        )
 
-        result.assertCsv(csv("Receiver,Category", "Taxi,Business"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Category
+                Taxi,Business
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
+        )
     }
 
     // Receiver checkbox behavior
 
     @Test
     fun `unchecked receiver gets no suggestions on later rows`() {
-        val result = runCsv(
-            csv("Receiver,Amount", "Taxi,-10", "Taxi,-5", "Taxi,-3"),
+        val result = runCategorizerAppWithTestIO(
+            """
+                Receiver,Amount
+                Taxi,-10
+                Taxi,-5
+                Taxi,-3
+            """.trimIndent() + "\n",
             responses("x", "Travel", "", "Business", "", "Personal"),
         )
 
-        result.assertCsv(
-            csv("Receiver,Amount,Category", "Taxi,-10,Travel", "Taxi,-5,Business", "Taxi,-3,Personal"),
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Amount,Category
+                Taxi,-10,Travel
+                Taxi,-5,Business
+                Taxi,-3,Personal
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
         )
         result.assertTranscriptContains("Auto-select for Taxi? [ ]")
         assertFalse("Category [Travel]:" in result.transcript)
@@ -108,13 +204,25 @@ class TransactionCategorizerCliTest {
 
     @Test
     fun `checking a receiver again uses its last chosen category`() {
-        val result = runCsv(
-            csv("Receiver,Amount", "Taxi,-10", "Taxi,-5", "Taxi,-3"),
+        val result = runCategorizerAppWithTestIO(
+            """
+                Receiver,Amount
+                Taxi,-10
+                Taxi,-5
+                Taxi,-3
+            """.trimIndent() + "\n",
             responses("x", "Travel", "", "Business", "x", ""),
         )
 
-        result.assertCsv(
-            csv("Receiver,Amount,Category", "Taxi,-10,Travel", "Taxi,-5,Business", "Taxi,-3,Business"),
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Amount,Category
+                Taxi,-10,Travel
+                Taxi,-5,Business
+                Taxi,-3,Business
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
         )
         result.assertTranscriptContains("Auto-select on for Taxi.")
         result.assertTranscriptContains("Category [Business]:")
@@ -122,19 +230,27 @@ class TransactionCategorizerCliTest {
 
     @Test
     fun `checkbox and category history belong to each receiver separately`() {
-        val result = runCsv(
-            csv("Receiver,Amount", "Taxi,-10", "Shop,-5", "Taxi,-3", "Shop,-2"),
+        val result = runCategorizerAppWithTestIO(
+            """
+                Receiver,Amount
+                Taxi,-10
+                Shop,-5
+                Taxi,-3
+                Shop,-2
+            """.trimIndent() + "\n",
             responses("x", "Travel", "", "Groceries", "", "Business", "", ""),
         )
 
-        result.assertCsv(
-            csv(
-                "Receiver,Amount,Category",
-                "Taxi,-10,Travel",
-                "Shop,-5,Groceries",
-                "Taxi,-3,Business",
-                "Shop,-2,Groceries",
-            ),
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Amount,Category
+                Taxi,-10,Travel
+                Shop,-5,Groceries
+                Taxi,-3,Business
+                Shop,-2,Groceries
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
         )
         result.assertTranscriptContains("Auto-select for Taxi? [ ]")
         result.assertTranscriptContains("Category [Groceries]:")
@@ -142,90 +258,166 @@ class TransactionCategorizerCliTest {
 
     @Test
     fun `blank receiver rows are categorized separately`() {
-        val result = runCsv(csv("Receiver,Amount", ",-10", ",-5"), responses("One", "Two"))
+        val result = runCategorizerAppWithTestIO(
+            """
+                Receiver,Amount
+                ,-10
+                ,-5
+            """.trimIndent() + "\n",
+            responses("One", "Two"),
+        )
 
-        result.assertCsv(csv("Receiver,Amount,Category", ",-10,One", ",-5,Two"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Amount,Category
+                ,-10,One
+                ,-5,Two
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
+        )
         assertFalse("Auto-select for" in result.transcript)
     }
 
     @Test
     fun `detects Payee before Description`() {
-        val result = runCsv(
-            csv("Description,Payee,Amount", "First ride,Taxi,-10", "Second ride,Taxi,-5"),
+        val result = runCategorizerAppWithTestIO(
+            """
+                Description,Payee,Amount
+                First ride,Taxi,-10
+                Second ride,Taxi,-5
+            """.trimIndent() + "\n",
             responses("", "Travel", "", ""),
         )
 
-        result.assertCsv(
-            csv("Description,Payee,Amount,Category", "First ride,Taxi,-10,Travel", "Second ride,Taxi,-5,Travel"),
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Description,Payee,Amount,Category
+                First ride,Taxi,-10,Travel
+                Second ride,Taxi,-5,Travel
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
         )
     }
 
     @Test
     fun `accepts an explicit receiver header with spaces`() {
-        val result = runCsv(
-            csv("Beneficiary Name,Amount", "Clinic,-10", "Clinic,-5"),
+        val result = runCategorizerAppWithTestIO(
+            """
+                Beneficiary Name,Amount
+                Clinic,-10
+                Clinic,-5
+            """.trimIndent() + "\n",
             responses("", "Health", "", ""),
             receiverColumn = "Beneficiary Name",
         )
 
-        result.assertCsv(csv("Beneficiary Name,Amount,Category", "Clinic,-10,Health", "Clinic,-5,Health"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Beneficiary Name,Amount,Category
+                Clinic,-10,Health
+                Clinic,-5,Health
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
+        )
     }
 
     // CSV format and terminal prompts
 
     @Test
     fun `round trips quoted commas quotes and multiline fields`() {
-        val source = csv(
-            "Receiver,Note",
-            "\"Shop, Inc\",\"He said \"\"hi\"\"\"",
-            "\"Shop, Inc\",\"Line one\nLine two\"",
-        )
-        val result = runCsv(source, responses("", "Food, drinks", "", ""))
+        val source = """
+            Receiver,Note
+            "Shop, Inc","He said ""hi"" today"
+            "Shop, Inc","Line one
+            Line two"
+        """.trimIndent() + "\n"
+        val result = runCategorizerAppWithTestIO(source, responses("", "Food, drinks", "", ""))
 
-        result.assertCsv(
-            csv(
-                "Receiver,Note,Category",
-                "\"Shop, Inc\",\"He said \"\"hi\"\"\",\"Food, drinks\"",
-                "\"Shop, Inc\",\"Line one\nLine two\",\"Food, drinks\"",
-            ),
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Note,Category
+                "Shop, Inc","He said ""hi"" today","Food, drinks"
+                "Shop, Inc","Line one
+                Line two","Food, drinks"
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
         )
     }
 
     @Test
     fun `preserves UTF-8 BOM and CRLF line endings`() {
-        val result = runCsv("\uFEFFDate,Receiver\r\n1,Café\r\n", responses("", "Meals"))
+        val result = runCategorizerAppWithTestIO("\uFEFFDate,Receiver\r\n1,Café\r\n", responses("", "Meals"))
 
-        result.assertCsv("\uFEFFDate,Receiver,Category\r\n1,Café,Meals\r\n")
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals("\uFEFFDate,Receiver,Category\r\n1,Café,Meals\r\n", Files.readString(result.output))
     }
 
     @Test
     fun `skips blank lines between transactions`() {
-        val result = runCsv("\nReceiver,Amount\n\nShop,-10\n\n", responses("", "Food"))
+        val result = runCategorizerAppWithTestIO("\nReceiver,Amount\n\nShop,-10\n\n", responses("", "Food"))
 
-        result.assertCsv(csv("Receiver,Amount,Category", "Shop,-10,Food"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Amount,Category
+                Shop,-10,Food
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
+        )
     }
 
     @Test
     fun `header only CSV produces header only output`() {
-        val result = runCsv(csv("Receiver,Amount"), "")
+        val result = runCategorizerAppWithTestIO("Receiver,Amount\n", "")
 
-        result.assertCsv(csv("Receiver,Amount,Category"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals("Receiver,Amount,Category\n", Files.readString(result.output))
         assertFalse("Transaction 1" in result.transcript)
     }
 
     @Test
     fun `empty category input asks again`() {
-        val result = runCsv(csv("Receiver,Amount", "Shop,-10"), responses("", "", "Food"))
+        val result = runCategorizerAppWithTestIO(
+            """
+                Receiver,Amount
+                Shop,-10
+            """.trimIndent() + "\n",
+            responses("", "", "Food"),
+        )
 
-        result.assertCsv(csv("Receiver,Amount,Category", "Shop,-10,Food"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Amount,Category
+                Shop,-10,Food
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
+        )
         result.assertTranscriptContains("Please enter a category.")
     }
 
     @Test
     fun `invalid checkbox input asks again`() {
-        val result = runCsv(csv("Receiver,Amount", "Shop,-10"), responses("no", "", "Food"))
+        val result = runCategorizerAppWithTestIO(
+            """
+                Receiver,Amount
+                Shop,-10
+            """.trimIndent() + "\n",
+            responses("no", "", "Food"),
+        )
 
-        result.assertCsv(csv("Receiver,Amount,Category", "Shop,-10,Food"))
+        assertEquals(0, result.exitCode, result.transcript)
+        assertEquals(
+            """
+                Receiver,Amount,Category
+                Shop,-10,Food
+            """.trimIndent() + "\n",
+            Files.readString(result.output),
+        )
         result.assertTranscriptContains("Press Enter to keep the checkbox or x to toggle it.")
     }
 
@@ -233,35 +425,36 @@ class TransactionCategorizerCliTest {
 
     @Test
     fun `rejects an empty CSV`() {
-        runCsv("", "").assertRejected(1, "The CSV is empty.")
+        runCategorizerAppWithTestIO("", "").assertRejected(1, "The CSV is empty.")
     }
 
     @Test
     fun `rejects a missing receiver column`() {
-        runCsv(csv("Date,Amount", "1,-10"), "").assertRejected(1, "No receiver column found")
+        runCategorizerAppWithTestIO("Date,Amount\n1,-10\n", "")
+            .assertRejected(1, "No receiver column found")
     }
 
     @Test
     fun `rejects an unknown explicit receiver column`() {
-        runCsv(csv("Receiver,Amount", "Shop,-10"), "", receiverColumn = "Vendor")
+        runCategorizerAppWithTestIO("Receiver,Amount\nShop,-10\n", "", receiverColumn = "Vendor")
             .assertRejected(1, "Receiver column not found: Vendor")
     }
 
     @Test
     fun `rejects a receiver column that is also Category`() {
-        runCsv(csv("Category,Amount", "Shop,-10"), "", receiverColumn = "Category")
+        runCategorizerAppWithTestIO("Category,Amount\nShop,-10\n", "", receiverColumn = "Category")
             .assertRejected(1, "receiver and Category columns must be different")
     }
 
     @Test
     fun `rejects duplicate Category columns`() {
-        runCsv(csv("Receiver,Category,CATEGORY", "Shop,,"), "")
+        runCategorizerAppWithTestIO("Receiver,Category,CATEGORY\nShop,,\n", "")
             .assertRejected(1, "more than one Category column")
     }
 
     @Test
     fun `rejects a short CSV row before prompting`() {
-        val result = runCsv(csv("Receiver,Amount", "Shop"), "")
+        val result = runCategorizerAppWithTestIO("Receiver,Amount\nShop\n", "")
 
         result.assertRejected(1, "CSV row 2 has 1 fields; expected 2.")
         assertFalse("Transaction 1" in result.transcript)
@@ -269,29 +462,31 @@ class TransactionCategorizerCliTest {
 
     @Test
     fun `rejects an unclosed quoted field`() {
-        runCsv("Receiver,Amount\n\"Shop,-10\n", "").assertRejected(1, "Unclosed quoted field")
+        runCategorizerAppWithTestIO("Receiver,Amount\n\"Shop,-10\n", "")
+            .assertRejected(1, "Unclosed quoted field")
     }
 
     @Test
     fun `rejects characters after a closing quote`() {
-        runCsv("Receiver,Amount\n\"Shop\"oops,-10\n", "").assertRejected(1, "Malformed CSV")
+        runCategorizerAppWithTestIO("Receiver,Amount\n\"Shop\"oops,-10\n", "")
+            .assertRejected(1, "Malformed CSV")
     }
 
     @Test
     fun `end of input at the checkbox leaves no output`() {
-        runCsv(csv("Receiver,Amount", "Shop,-10"), "")
+        runCategorizerAppWithTestIO("Receiver,Amount\nShop,-10\n", "")
             .assertRejected(1, "Input ended before all transactions were categorized.")
     }
 
     @Test
     fun `end of input at the category prompt leaves no output`() {
-        runCsv(csv("Receiver,Amount", "Shop,-10"), responses(""))
+        runCategorizerAppWithTestIO("Receiver,Amount\nShop,-10\n", responses(""))
             .assertRejected(1, "Input ended before all transactions were categorized.")
     }
 
     @Test
     fun `end of input after completed rows leaves no output`() {
-        runCsv(csv("Receiver,Amount", "Shop,-10", "Taxi,-5"), responses("", "Food"))
+        runCategorizerAppWithTestIO("Receiver,Amount\nShop,-10\nTaxi,-5\n", responses("", "Food"))
             .assertRejected(1, "Input ended before all transactions were categorized.")
     }
 
@@ -299,11 +494,11 @@ class TransactionCategorizerCliTest {
 
     @Test
     fun `existing output is not overwritten`() {
-        val input = inputFile(csv("Receiver,Amount", "Shop,-10"))
+        val input = inputFile("Receiver,Amount\nShop,-10\n")
         val output = directory.resolve("output.csv")
         Files.writeString(output, "keep me", UTF_8)
 
-        val result = runCli(input, output, responses("", "Food"))
+        val result = runCategorizerApp(input, output, responses("", "Food"))
 
         assertEquals(2, result.exitCode, result.transcript)
         result.assertTranscriptContains("Output already exists:")
@@ -312,10 +507,10 @@ class TransactionCategorizerCliTest {
 
     @Test
     fun `input cannot also be the output`() {
-        val source = csv("Receiver,Amount", "Shop,-10")
+        val source = "Receiver,Amount\nShop,-10\n"
         val input = inputFile(source)
 
-        val result = runCli(input, input, responses("", "Food"))
+        val result = runCategorizerApp(input, input, responses("", "Food"))
 
         assertEquals(2, result.exitCode, result.transcript)
         result.assertTranscriptContains("Input and output must be different files.")
@@ -324,7 +519,7 @@ class TransactionCategorizerCliTest {
 
     @Test
     fun `missing input file is reported without creating output`() {
-        runCli(directory.resolve("missing.csv"), directory.resolve("output.csv"), "")
+        runCategorizerApp(directory.resolve("missing.csv"), directory.resolve("output.csv"), "")
             .assertRejected(2, "Input file does not exist:")
     }
 
@@ -332,10 +527,18 @@ class TransactionCategorizerCliTest {
         Files.writeString(it, csv, UTF_8)
     }
 
-    private fun runCsv(csv: String, responses: String, receiverColumn: String? = null): CliResult =
-        runCli(inputFile(csv), directory.resolve("output.csv"), responses, receiverColumn)
+    private fun runCategorizerAppWithTestIO(
+        csvInput: String,
+        terminalResponses: String,
+        receiverColumn: String? = null,
+    ): CliResult = runCategorizerApp(inputFile(csvInput), directory.resolve("output.csv"), terminalResponses, receiverColumn)
 
-    private fun runCli(input: Path, output: Path, responses: String, receiverColumn: String? = null): CliResult {
+    private fun runCategorizerApp(
+        input: Path,
+        output: Path,
+        terminalResponses: String,
+        receiverColumn: String? = null,
+    ): CliResult {
         val javaName = if (System.getProperty("os.name").contains("win", ignoreCase = true)) "java.exe" else "java"
         val command = buildList {
             add(Path.of(System.getProperty("java.home"), "bin", javaName).toString())
@@ -344,7 +547,7 @@ class TransactionCategorizerCliTest {
             receiverColumn?.let(::add)
         }
         val process = ProcessBuilder(command).redirectErrorStream(true).start()
-        process.outputStream.use { it.write(responses.toByteArray(UTF_8)) }
+        process.outputStream.use { it.write(terminalResponses.toByteArray(UTF_8)) }
         if (!process.waitFor(10, TimeUnit.SECONDS)) {
             process.destroyForcibly()
             error("CLI did not finish")
@@ -356,14 +559,7 @@ class TransactionCategorizerCliTest {
         )
     }
 
-    private fun csv(vararg lines: String): String = lines.joinToString("\n", postfix = "\n")
-
     private fun responses(vararg lines: String): String = lines.joinToString("\n", postfix = "\n")
-
-    private fun CliResult.assertCsv(expected: String) {
-        assertEquals(0, exitCode, transcript)
-        assertEquals(expected, Files.readString(output, UTF_8))
-    }
 
     private fun CliResult.assertRejected(expectedExitCode: Int, message: String) {
         assertEquals(expectedExitCode, exitCode, transcript)
