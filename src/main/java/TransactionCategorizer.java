@@ -7,9 +7,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public final class TransactionCategorizer {
     private TransactionCategorizer() {
@@ -98,6 +100,7 @@ public final class TransactionCategorizer {
 
             BufferedReader console = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
             Map<String, String> lastCategoryByReceiver = new HashMap<>();
+            Set<String> receiversWithoutAutoSelect = new HashSet<>();
             for (int record = 1; record < rows.size(); record++) {
                 List<String> row = rows.get(record);
                 System.out.printf("%nTransaction %d of %d%n", record, rows.size() - 1);
@@ -108,8 +111,34 @@ public final class TransactionCategorizer {
                 }
                 String receiver = row.get(receiverColumn).strip();
                 String receiverKey = receiver.toLowerCase(Locale.ROOT);
+                if (!receiverKey.isEmpty()) {
+                    boolean autoSelect = !receiversWithoutAutoSelect.contains(receiverKey);
+                    while (true) {
+                        System.out.print("Auto-select for " + receiver + "? "
+                                + (autoSelect ? "[x]" : "[ ]") + " (Enter=keep, x=toggle): ");
+                        System.out.flush();
+                        String answer = console.readLine();
+                        if (answer == null) {
+                            throw new IllegalArgumentException("Input ended before all transactions were categorized.");
+                        }
+                        if (answer.isBlank()) {
+                            break;
+                        }
+                        if (answer.strip().equalsIgnoreCase("x")) {
+                            autoSelect = !autoSelect;
+                            break;
+                        }
+                        System.out.println("Press Enter to keep the checkbox or x to toggle it.");
+                    }
+                    if (autoSelect) {
+                        receiversWithoutAutoSelect.remove(receiverKey);
+                    } else {
+                        receiversWithoutAutoSelect.add(receiverKey);
+                    }
+                }
                 String category = row.get(categoryColumn).strip();
-                if (category.isEmpty() && !receiverKey.isEmpty()) {
+                if (category.isEmpty() && !receiverKey.isEmpty()
+                        && !receiversWithoutAutoSelect.contains(receiverKey)) {
                     category = lastCategoryByReceiver.getOrDefault(receiverKey, "");
                 }
                 while (true) {
