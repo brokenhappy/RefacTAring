@@ -1,5 +1,6 @@
 plugins {
     id("application")
+    kotlin("jvm") version "2.3.21"
 }
 
 group = "com.woutwerkman"
@@ -9,6 +10,10 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
+}
+
+kotlin {
+    jvmToolchain(21)
 }
 
 application {
