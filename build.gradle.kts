@@ -15,6 +15,10 @@ application {
     mainClass = "TransactionCategorizer"
 }
 
+tasks.named<JavaExec>("run") {
+    standardInput = System.`in`
+}
+
 repositories {
     mavenCentral()
 }
