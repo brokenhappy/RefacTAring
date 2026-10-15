@@ -84,6 +84,9 @@ public final class TransactionCategorizer {
                     categoryColumn = column;
                 }
             }
+            if (receiverColumn == categoryColumn) {
+                throw new IllegalArgumentException("The receiver and Category columns must be different.");
+            }
             for (int record = 1; record < rows.size(); record++) {
                 if (rows.get(record).size() != columnCount) {
                     throw new IllegalArgumentException("CSV row " + (record + 1) + " has "
@@ -126,6 +129,7 @@ public final class TransactionCategorizer {
                         }
                         if (answer.strip().equalsIgnoreCase("x")) {
                             autoSelect = !autoSelect;
+                            System.out.println("Auto-select " + (autoSelect ? "on" : "off") + " for " + receiver + ".");
                             break;
                         }
                         System.out.println("Press Enter to keep the checkbox or x to toggle it.");
@@ -194,6 +198,12 @@ public final class TransactionCategorizer {
                     field.append(c);
                 }
             } else if (c == ',' || c == '\r' || c == '\n') {
+                if (c != ',' && row.isEmpty() && field.isEmpty() && !afterQuote) {
+                    if (c == '\r' && i + 1 < csv.length() && csv.charAt(i + 1) == '\n') {
+                        i++;
+                    }
+                    continue;
+                }
                 row.add(field.toString());
                 field.setLength(0);
                 afterQuote = false;
