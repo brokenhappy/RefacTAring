@@ -35,7 +35,7 @@ class TransactionCategorizerCliTest {
             Files.readString(result.output),
         )
         assertEquals(source, Files.readString(input))
-        result.assertTranscriptContains("Transaction 1 of 1")
+        assertTrue("Transaction 1 of 1" in result.transcript, result.transcript)
     }
 
     @Test
@@ -58,7 +58,7 @@ class TransactionCategorizerCliTest {
             """.trimIndent() + "\n",
             Files.readString(result.output),
         )
-        result.assertTranscriptContains("Category [Groceries]:")
+        assertTrue("Category [Groceries]:" in result.transcript, result.transcript)
     }
 
     @Test
@@ -81,7 +81,7 @@ class TransactionCategorizerCliTest {
             """.trimIndent() + "\n",
             Files.readString(result.output),
         )
-        result.assertTranscriptContains("Category [Supplies]:")
+        assertTrue("Category [Supplies]:" in result.transcript, result.transcript)
     }
 
     @Test
@@ -106,8 +106,8 @@ class TransactionCategorizerCliTest {
             """.trimIndent() + "\n",
             Files.readString(result.output),
         )
-        result.assertTranscriptContains("Category [Groceries]:")
-        result.assertTranscriptContains("Category [Gifts]:")
+        assertTrue("Category [Groceries]:" in result.transcript, result.transcript)
+        assertTrue("Category [Gifts]:" in result.transcript, result.transcript)
     }
 
     @Test
@@ -128,7 +128,7 @@ class TransactionCategorizerCliTest {
             """.trimIndent() + "\n",
             Files.readString(result.output),
         )
-        result.assertTranscriptContains("Category [Travel]:")
+        assertTrue("Category [Travel]:" in result.transcript, result.transcript)
     }
 
     @Test
@@ -197,7 +197,7 @@ class TransactionCategorizerCliTest {
             """.trimIndent() + "\n",
             Files.readString(result.output),
         )
-        result.assertTranscriptContains("Auto-select for Taxi? [ ]")
+        assertTrue("Auto-select for Taxi? [ ]" in result.transcript, result.transcript)
         assertFalse("Category [Travel]:" in result.transcript)
         assertFalse("Category [Business]:" in result.transcript)
     }
@@ -224,8 +224,8 @@ class TransactionCategorizerCliTest {
             """.trimIndent() + "\n",
             Files.readString(result.output),
         )
-        result.assertTranscriptContains("Auto-select on for Taxi.")
-        result.assertTranscriptContains("Category [Business]:")
+        assertTrue("Auto-select on for Taxi." in result.transcript, result.transcript)
+        assertTrue("Category [Business]:" in result.transcript, result.transcript)
     }
 
     @Test
@@ -252,8 +252,8 @@ class TransactionCategorizerCliTest {
             """.trimIndent() + "\n",
             Files.readString(result.output),
         )
-        result.assertTranscriptContains("Auto-select for Taxi? [ ]")
-        result.assertTranscriptContains("Category [Groceries]:")
+        assertTrue("Auto-select for Taxi? [ ]" in result.transcript, result.transcript)
+        assertTrue("Category [Groceries]:" in result.transcript, result.transcript)
     }
 
     @Test
@@ -397,7 +397,7 @@ class TransactionCategorizerCliTest {
             """.trimIndent() + "\n",
             Files.readString(result.output),
         )
-        result.assertTranscriptContains("Please enter a category.")
+        assertTrue("Please enter a category." in result.transcript, result.transcript)
     }
 
     @Test
@@ -418,7 +418,7 @@ class TransactionCategorizerCliTest {
             """.trimIndent() + "\n",
             Files.readString(result.output),
         )
-        result.assertTranscriptContains("Press Enter to keep the checkbox or x to toggle it.")
+        assertTrue("Press Enter to keep the checkbox or x to toggle it." in result.transcript, result.transcript)
     }
 
     // Rejected CSV and interrupted sessions never create an output file
@@ -501,7 +501,7 @@ class TransactionCategorizerCliTest {
         val result = runCategorizerApp(input, output, responses("", "Food"))
 
         assertEquals(2, result.exitCode, result.transcript)
-        result.assertTranscriptContains("Output already exists:")
+        assertTrue("Output already exists:" in result.transcript, result.transcript)
         assertEquals("keep me", Files.readString(output))
     }
 
@@ -513,7 +513,7 @@ class TransactionCategorizerCliTest {
         val result = runCategorizerApp(input, input, responses("", "Food"))
 
         assertEquals(2, result.exitCode, result.transcript)
-        result.assertTranscriptContains("Input and output must be different files.")
+        assertTrue("Input and output must be different files." in result.transcript, result.transcript)
         assertEquals(source, Files.readString(input))
     }
 
@@ -563,12 +563,8 @@ class TransactionCategorizerCliTest {
 
     private fun CliResult.assertRejected(expectedExitCode: Int, message: String) {
         assertEquals(expectedExitCode, exitCode, transcript)
-        assertTranscriptContains(message)
+        assertTrue(message in transcript, transcript)
         assertFalse(Files.exists(output), "Rejected input must not create output")
-    }
-
-    private fun CliResult.assertTranscriptContains(text: String) {
-        assertTrue(text in transcript, transcript)
     }
 
     private data class CliResult(val exitCode: Int, val transcript: String, val output: Path)
