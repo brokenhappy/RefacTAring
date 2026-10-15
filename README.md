@@ -53,3 +53,15 @@ sample output will have the same rows, with a `Category` value on each one.
 
 The checkbox state exists only while processing one CSV. To explore the code's
 evolution, run `git log --oneline` and inspect the small commits.
+
+## Verify changes
+
+```sh
+./gradlew test
+```
+
+The 33 end-to-end tests run the CLI with temporary CSV files and scripted
+terminal input. They check the resulting CSV, category suggestions, receiver
+checkboxes, CSV quoting and line endings, and failures that must leave input
+and output files untouched. The application implementation remains in one Java
+file; the tests are in a separate test file.
