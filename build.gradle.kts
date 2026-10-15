@@ -1,5 +1,5 @@
 plugins {
-    id("java")
+    id("application")
 }
 
 group = "com.woutwerkman"
@@ -9,6 +9,10 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
+}
+
+application {
+    mainClass = "TransactionCategorizer"
 }
 
 repositories {
