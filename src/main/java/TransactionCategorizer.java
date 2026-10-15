@@ -6,7 +6,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public final class TransactionCategorizer {
     private TransactionCategorizer() {
@@ -42,6 +45,34 @@ public final class TransactionCategorizer {
             }
             List<String> header = rows.get(0);
             int columnCount = header.size();
+            int receiverColumn = -1;
+            if (args.length == 3) {
+                for (int column = 0; column < columnCount; column++) {
+                    if (header.get(column).strip().equalsIgnoreCase(args[2].strip())) {
+                        receiverColumn = column;
+                        break;
+                    }
+                }
+                if (receiverColumn < 0) {
+                    throw new IllegalArgumentException("Receiver column not found: " + args[2]);
+                }
+            } else {
+                for (String candidate : List.of("receiver", "recipient", "payee", "merchant",
+                        "counterparty", "beneficiary", "description")) {
+                    for (int column = 0; column < columnCount; column++) {
+                        if (header.get(column).strip().equalsIgnoreCase(candidate)) {
+                            receiverColumn = column;
+                            break;
+                        }
+                    }
+                    if (receiverColumn >= 0) {
+                        break;
+                    }
+                }
+                if (receiverColumn < 0) {
+                    throw new IllegalArgumentException("No receiver column found. Pass its header as the third argument.");
+                }
+            }
             int categoryColumn = -1;
             for (int column = 0; column < columnCount; column++) {
                 if (header.get(column).strip().equalsIgnoreCase("category")) {
@@ -66,6 +97,7 @@ public final class TransactionCategorizer {
             }
 
             BufferedReader console = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
+            Map<String, String> lastCategoryByReceiver = new HashMap<>();
             for (int record = 1; record < rows.size(); record++) {
                 List<String> row = rows.get(record);
                 System.out.printf("%nTransaction %d of %d%n", record, rows.size() - 1);
@@ -74,7 +106,12 @@ public final class TransactionCategorizer {
                         System.out.println(header.get(column) + ": " + row.get(column));
                     }
                 }
+                String receiver = row.get(receiverColumn).strip();
+                String receiverKey = receiver.toLowerCase(Locale.ROOT);
                 String category = row.get(categoryColumn).strip();
+                if (category.isEmpty() && !receiverKey.isEmpty()) {
+                    category = lastCategoryByReceiver.getOrDefault(receiverKey, "");
+                }
                 while (true) {
                     System.out.print(category.isEmpty() ? "Category: " : "Category [" + category + "]: ");
                     System.out.flush();
@@ -91,6 +128,9 @@ public final class TransactionCategorizer {
                     System.out.println("Please enter a category.");
                 }
                 row.set(categoryColumn, category);
+                if (!receiverKey.isEmpty()) {
+                    lastCategoryByReceiver.put(receiverKey, category);
+                }
             }
 
             String lineEnding = csv.contains("\r\n") ? "\r\n" : csv.contains("\r") ? "\r" : "\n";
